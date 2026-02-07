@@ -1,0 +1,29 @@
+[package]
+name = "sumo"
+version = "0.1.0"
+edition = "2024_07"
+
+# See more keys and their definitions at https://docs.swmansion.com/scarb/docs/reference/manifest.html
+[scripts]
+test = "snforge test"
+
+[dependencies]
+garaga = { git = "https://github.com/keep-starknet-strange/garaga.git", tag = "v1.0.1" }
+erc20 = { path = "./erc20" }
+oracle = { path = "./oracle" }
+starknet = "2.14.0"
+
+[dev-dependencies]
+snforge_std = "0.53.0"
+assert_macros = "2.14.0"
+cairo_test = "2.14.0"
+
+[cairo]
+sierra-replace-ids = false
+
+[[target.starknet-contract]]
+build-external-contracts = ["erc20::ERC20Contract","oracle::OracleContract"]
+# casm = true
+# casm-add-pythonic-hints = true
+
+

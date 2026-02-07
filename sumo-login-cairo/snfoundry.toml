@@ -1,0 +1,7 @@
+[sncast.sepolia]
+account = "new_account"
+url = "https://starknet-sepolia.g.alchemy.com/starknet/version/rpc/v0_10/OfZA_k9dt4bm8hU_brCcah5wbRx--cf9"
+
+[sncast.mainnet]
+account = "deployer"
+url = "https://starknet-mainnet.public.blastapi.io/rpc/v0_7"

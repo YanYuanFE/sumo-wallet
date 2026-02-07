@@ -1,0 +1,139 @@
+[
+  {
+    "type": "function",
+    "name": "deploy",
+    "inputs": [],
+    "outputs": [
+      {
+        "type": "felt"
+      }
+    ],
+    "state_mutability": "external"
+  },
+  {
+    "type": "function",
+    "name": "login",
+    "inputs": [],
+    "outputs": [],
+    "state_mutability": "external"
+  },
+  {
+    "type": "function",
+    "name": "is_sumo_user",
+    "inputs": [
+      {
+        "name": "user_address",
+        "type": "felt"
+      }
+    ],
+    "outputs": [
+      {
+        "type": "felt"
+      }
+    ],
+    "state_mutability": "view"
+  },
+  {
+    "type": "function",
+    "name": "get_user_debt",
+    "inputs": [
+      {
+        "name": "user_address",
+        "type": "felt"
+      }
+    ],
+    "outputs": [
+      {
+        "type": "felt"
+      }
+    ],
+    "state_mutability": "view"
+  },
+  {
+    "type": "function",
+    "name": "is_valid_signature",
+    "inputs": [
+      {
+        "name": "msg_hash",
+        "type": "felt"
+      },
+      {
+        "name": "signature",
+        "type": "felt*"
+      }
+    ],
+    "outputs": [
+      {
+        "type": "felt"
+      }
+    ],
+    "state_mutability": "view"
+  },
+  {
+    "type": "function",
+    "name": "__validate__",
+    "inputs": [
+      {
+        "name": "calls",
+        "type": "Call*"
+      }
+    ],
+    "outputs": [
+      {
+        "type": "felt"
+      }
+    ],
+    "state_mutability": "view"
+  },
+  {
+    "type": "function",
+    "name": "__validate_declare__",
+    "inputs": [
+      {
+        "name": "declared_class_hash",
+        "type": "felt"
+      }
+    ],
+    "outputs": [
+      {
+        "type": "felt"
+      }
+    ],
+    "state_mutability": "view"
+  },
+  {
+    "type": "function",
+    "name": "__execute__",
+    "inputs": [
+      {
+        "name": "calls",
+        "type": "Call*"
+      }
+    ],
+    "outputs": [
+      {
+        "type": "felt*"
+      }
+    ],
+    "state_mutability": "external"
+  },
+  {
+    "type": "function",
+    "name": "update_oauth_public_key",
+    "inputs": [],
+    "outputs": [],
+    "state_mutability": "external"
+  },
+  {
+    "type": "function",
+    "name": "collect_debt",
+    "inputs": [
+      {
+        "name": "user_address",
+        "type": "felt"
+      }
+    ],
+    "outputs": [],
+    "state_mutability": "external"
+  }
+]
