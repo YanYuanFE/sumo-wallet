@@ -1,4 +1,3 @@
-import { useState, useEffect, useCallback } from "react";
 import { GoogleOAuthProvider } from "@react-oauth/google";
 import { Toaster, toast } from "sonner";
 
@@ -19,22 +18,8 @@ import { WalletPanel } from "@/components/WalletPanel";
 import { JWTViewer } from "@/components/JWTViewer";
 import { ZKProofGenerator } from "@/components/ZKProofGenerator";
 
-import type {
-  GoogleJWT,
-  SmartAccount,
-  SessionKeyPair,
-  ZKProof,
-  LoginFlow,
-} from "@/types";
-import {
-  generateSessionKeyPair,
-  generateNonce,
-} from "@/utils/crypto";
-import { getSumoAccountAddress } from "@/services/starknetService";
-import { saveAccount, getCurrentAccount, clearStorage, saveZKProof, getZKProof, saveJWT, getJWT } from "@/utils/storage";
-import { verifyZKProof, type FullZKProof } from "@/services/zkProofService";
+import { useAuthFlow, GOOGLE_CLIENT_ID, DEFAULT_GOOGLE_CLIENT_ID } from "@/hooks/useAuthFlow";
 
-import { provider } from "@/config/starknet";
 import {
   Shield,
   Zap,
@@ -45,266 +30,21 @@ import {
   CheckCircle,
 } from "lucide-react";
 
-const DEFAULT_GOOGLE_CLIENT_ID =
-  "481771758710-4d0pn7iag8nlut2l0p5n1lsubt1hei1h.apps.googleusercontent.com";
-const GOOGLE_CLIENT_ID =
-  import.meta.env.VITE_GOOGLE_CLIENT_ID || DEFAULT_GOOGLE_CLIENT_ID;
-
 function AppContent() {
-  const [flow, setFlow] = useState<LoginFlow>({
-    step: "idle",
-    progress: 0,
-    message: 'Click "Continue with Google" to start',
-  });
-
-  const [googleToken, setGoogleToken] = useState<string | null>(null);
-  const [decodedJWT, setDecodedJWT] = useState<GoogleJWT | null>(null);
-  const [sessionKey, setSessionKey] = useState<SessionKeyPair | null>(null);
-  const [zkProof, setZkProof] = useState<
-    (ZKProof & { fullProof?: FullZKProof }) | null
-  >(null);
-  const [proofVerified, setProofVerified] = useState<boolean | null>(null);
-  const [account, setAccount] = useState<SmartAccount | null>(null);
-  const [maxBlock, setMaxBlock] = useState<number>(0);
-  const [nonce] = useState(() =>
-    generateNonce("0x" + Math.random().toString(16).slice(2)),
-  );
-
-  // Check for existing session on mount
-  useEffect(() => {
-    const existingAccount = getCurrentAccount();
-    if (existingAccount) {
-      // Add 5 minute buffer to avoid race condition where session expires
-      // between this check and WalletPanel render
-      const EXPIRY_BUFFER_MS = 5 * 60 * 1000; // 5 minutes
-      if (existingAccount.sessionKey.expiresAt > Date.now() + EXPIRY_BUFFER_MS) {
-        setAccount(existingAccount);
-
-        // Restore ZK Proof and maxBlock from storage
-        const savedProofData = getZKProof();
-        if (savedProofData) {
-          setZkProof(savedProofData.proof);
-          if (savedProofData.maxBlock) {
-            setMaxBlock(savedProofData.maxBlock);
-          }
-        }
-
-        // Restore JWT from storage
-        const savedJWT = getJWT();
-        if (savedJWT) {
-          setDecodedJWT(savedJWT.jwt);
-          setGoogleToken(savedJWT.jwtToken);
-        }
-
-        setFlow({
-          step: "complete",
-          progress: 100,
-          message: "Session restored from storage",
-        });
-        toast.success("Welcome back! Session restored.");
-      } else {
-        clearStorage();
-      }
-    }
-  }, []);
-
-  const handleGoogleSuccess = useCallback(
-    async (tokenResponse: { access_token: string; id_token?: string }) => {
-      try {
-        const accessToken = tokenResponse.access_token;
-        const idToken = tokenResponse.id_token;
-
-        const userInfoResponse = await fetch(
-          "https://www.googleapis.com/oauth2/v3/userinfo",
-          { headers: { Authorization: `Bearer ${accessToken}` } },
-        );
-
-        if (!userInfoResponse.ok) {
-          throw new Error("Failed to fetch user info");
-        }
-
-        const userInfo = await userInfoResponse.json();
-
-        const mockJWT: GoogleJWT = {
-          iss: "https://accounts.google.com",
-          azp: GOOGLE_CLIENT_ID,
-          aud: GOOGLE_CLIENT_ID,
-          sub: userInfo.sub,
-          email: userInfo.email,
-          email_verified: userInfo.email_verified,
-          name: userInfo.name,
-          picture: userInfo.picture,
-          given_name: userInfo.given_name,
-          family_name: userInfo.family_name,
-          iat: Math.floor(Date.now() / 1000),
-          exp: Math.floor(Date.now() / 1000) + 3600,
-          nonce,
-        };
-
-        // Use id_token (JWT) for deployment if available, otherwise fall back to access_token
-        const tokenForDeployment = idToken || accessToken;
-        setGoogleToken(tokenForDeployment);
-        setDecodedJWT(mockJWT);
-        
-        // Save JWT to storage for persistence
-        saveJWT(mockJWT, tokenForDeployment);
-
-        setFlow({
-          step: "jwt",
-          progress: 20,
-          message: "JWT received and decoded",
-        });
-
-        toast.success("Google authentication successful!");
-
-        setTimeout(() => {
-          handleSessionKeyGeneration();
-        }, 800);
-      } catch (error) {
-        console.error("Auth error:", error);
-        toast.error("Authentication failed. Please try again.");
-      }
-    },
-    [nonce],
-  );
-
-  const handleSessionKeyGeneration = useCallback(async () => {
-    setFlow({
-      step: "session",
-      progress: 40,
-      message: "Generating ephemeral session keys...",
-    });
-
-    const keyPair = generateSessionKeyPair();
-    setSessionKey(keyPair);
-
-    // Get current block number for maxBlock
-    // Use a very large buffer for testing (100000 blocks ≈ 2-5 days on Starknet)
-    // Starknet produces blocks every 2-6 seconds, so:
-    // - 1 hour ≈ 600-1800 blocks
-    // - 1 day ≈ 14,400-43,200 blocks
-    // - 100,000 blocks ≈ 2-7 days
-    try {
-      const currentBlock = await provider.getBlockNumber();
-      const blockBuffer = 100000; // ~2-7 days buffer
-      setMaxBlock(currentBlock + blockBuffer);
-      console.log("[handleSessionKeyGeneration] Current block:", currentBlock);
-      console.log("[handleSessionKeyGeneration] maxBlock set to:", currentBlock + blockBuffer);
-      console.log("[handleSessionKeyGeneration] Estimated expiry: ~2-7 days from now");
-    } catch (error) {
-      console.error("Failed to get block number:", error);
-      // Use a very high fallback value
-      setMaxBlock(10000000);
-    }
-
-    toast.success("Session keys generated!");
-
-    setFlow({
-      step: "zkproof",
-      progress: 60,
-      message: "Ready to generate ZK proof",
-    });
-  }, []);
-
-  const handleZKProofGenerated = useCallback(
-    async (proof: ZKProof & { fullProof?: FullZKProof }) => {
-      setZkProof(proof);
-
-      // Save ZK Proof and maxBlock to storage
-      saveZKProof(proof, maxBlock);
-
-      setFlow({
-        step: "zkproof",
-        progress: 80,
-        message: "Verifying ZK proof...",
-      });
-
-      try {
-        const isValid = await verifyZKProof(proof);
-        setProofVerified(isValid);
-
-        if (isValid && decodedJWT && sessionKey) {
-          toast.success("ZK Proof verified!");
-          handleAccountCreation(decodedJWT, sessionKey);
-        } else {
-          toast.error("ZK Proof verification failed");
-        }
-      } catch {
-        toast.error("Proof verification error");
-      }
-    },
-    [decodedJWT, sessionKey, maxBlock],
-  );
-
-  const handleAccountCreation = useCallback(
-    async (jwt: GoogleJWT, keyPair: SessionKeyPair) => {
-      setFlow({
-        step: "account",
-        progress: 90,
-        message: "Deploying smart account...",
-      });
-
-      try {
-        // Debug: Log JWT data used for address calculation
-        console.log("[handleAccountCreation] JWT sub:", jwt.sub);
-        console.log("[handleAccountCreation] JWT email:", jwt.email);
-
-        // Use getSumoAccountAddress which computes address_seed using Poseidon hash
-        // This ensures consistency with the ZK proof and Cairo contract
-        if (!googleToken) {
-          throw new Error("JWT token required for address calculation");
-        }
-        const address = await getSumoAccountAddress(jwt, googleToken);
-        console.log("[handleAccountCreation] Computed address:", address);
-
-        const newAccount: SmartAccount = {
-          address,
-          owner: jwt.sub,
-          email: jwt.email,
-          sessionKey: keyPair,
-          createdAt: Date.now(),
-          lastLogin: Date.now(),
-          transactions: [],
-        };
-
-        saveAccount(newAccount);
-        setAccount(newAccount);
-
-        setFlow({
-          step: "complete",
-          progress: 100,
-          message: "Smart account ready!",
-        });
-
-        toast.success("Smart account deployed successfully!");
-      } catch (error) {
-        console.error("[handleAccountCreation] Error:", error);
-        toast.error("Account creation failed");
-      }
-    },
-    [googleToken],
-  );
-
-  const handleLogout = useCallback(() => {
-    clearStorage();
-    setAccount(null);
-    setGoogleToken(null);
-    setDecodedJWT(null);
-    setSessionKey(null);
-    setZkProof(null);
-    setProofVerified(null);
-    setFlow({
-      step: "idle",
-      progress: 0,
-      message: 'Click "Continue with Google" to start',
-    });
-    toast.info("Logged out successfully");
-  }, []);
-
-  const handleReset = useCallback(() => {
-    handleLogout();
-    window.location.reload();
-  }, [handleLogout]);
+  const {
+    flow,
+    googleToken,
+    decodedJWT,
+    sessionKey,
+    zkProof,
+    proofVerified,
+    account,
+    maxBlock,
+    handleGoogleSuccess,
+    handleZKProofGenerated,
+    handleLogout,
+    handleReset,
+  } = useAuthFlow();
 
   const isConfigured = GOOGLE_CLIENT_ID !== DEFAULT_GOOGLE_CLIENT_ID;
 
@@ -349,19 +89,6 @@ function AppContent() {
       </header>
 
       <main className="max-w-6xl mx-auto px-4 py-8">
-        {!isConfigured && (
-          <div className="mb-6 p-4 bg-amber-50 border border-amber-200 rounded-lg">
-            <p className="text-sm text-amber-800">
-              <strong>Demo Mode:</strong> Configure
-              <code className="mx-1 px-1 bg-amber-100 rounded">
-                VITE_GOOGLE_CLIENT_ID
-              </code>
-              for real Google auth. ZK proofs use real snarkjs with Poseidon
-              hashing.
-            </p>
-          </div>
-        )}
-
         {/* Hero Section */}
         {!account && (
           <div className="text-center mb-10">

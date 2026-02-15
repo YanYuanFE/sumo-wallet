@@ -1,0 +1,13 @@
+// 合约地址常量 - 从 starknetService.ts 提取
+
+export const SUMO_LOGIN_CONTRACT_ADDRESS =
+  "0x0780a35dc30f6b1efe58a4949e9944cdb819b7ae5d1056c20c2690367e74592c";
+
+export const SUMO_ACCOUNT_CLASS_HASH =
+  "0x233c3b7351035ed1509491a352c17b564c2ed2ae1162555619a0919e4b0162d";
+
+export const STRK_CONTRACT_ADDRESS =
+  "0x04718f5a0fc34cc1af16a1cdee98ffb20c31f5cd61d6ab07201858f4287c938d";
+
+export const ORACLE_ADDRESS =
+  "0x0084b8a600e0076a6fda30ce9ba4d93ba8e152239b88308cac3f80bbbc4ca3cc";
