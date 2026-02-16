@@ -87,7 +87,7 @@ export function WalletPanel({
 
   return (
     <>
-      <Card className="w-full max-w-md mx-auto">
+      <Card className="w-full">
         <CardHeader className="pb-4">
           <div className="flex items-center justify-between">
             <div className="flex items-center gap-2">
