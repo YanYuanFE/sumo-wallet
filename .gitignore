@@ -118,9 +118,6 @@ __pycache__
 
 # ZK / Circom
 circuits/build/
-public/zk/simple_auth.wasm
-public/zk/simple_auth_final.zkey
-public/zk/verification_key.json
 *.ptau
 *.zkey
 *.r1cs
