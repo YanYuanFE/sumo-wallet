@@ -19,8 +19,9 @@ pnpm run lint        # ESLint
 
 ### Backend (Proof Conversion Server)
 ```bash
-pnpm run server      # Express server on port 3001 (or GARAGA_PORT env)
+pnpm run server      # FastAPI server on port 3001 (or GARAGA_PORT env)
 ```
+Server is a pure Python FastAPI app (`server/app.py`), run via uvicorn from `.venv`.
 
 ### Cairo/Starknet Contracts
 ```bash
@@ -65,34 +66,80 @@ The app progresses through states defined in `src/types/index.ts`:
 ```
 idle → oauth → jwt → session → zkproof → account → complete
 ```
-State transitions are managed in `src/App.tsx`.
+State transitions are managed by `src/hooks/useAuthFlow.ts`. The UI renders a single-card wizard (`LoginWizard`) for the login flow and a dashboard layout post-login.
 
-### Key Components
+### Frontend Architecture (Hexagonal / Ports & Adapters)
 
-**Frontend (`src/`)**
-- React 19 + Vite + TypeScript with Tailwind CSS and Radix UI components
-- Path alias: `@/*` maps to `./src/*` (configured in tsconfig and vite.config)
-- `services/zkProofService.ts`: Core ZK logic - Poseidon hashing, identity commitment generation, Groth16 proof generation via snarkjs
-- `services/starknetService.ts`: Starknet blockchain interactions (contract calls, account deployment)
-- `services/walletService.ts`: Wallet connection management via starknetkit
-- `utils/crypto.ts`: Session key pair generation (Starknet ECDSA), transaction signing
-- `utils/storage.ts`: LocalStorage persistence for accounts, proofs, and JWTs
-- `config/starknet.ts`: Shared RpcProvider instance (Alchemy Sepolia endpoint)
-- `components/ZKProofGenerator.tsx`: UI for proof generation flow
-- `components/ui/`: 60+ Radix UI-based reusable components
+```
+src/
+├── adapters/              # Implementation details (ports & adapters)
+│   ├── auth/google.ts     # Google OAuth RSA key fetching
+│   ├── chain/starknet/    # Starknet interactions
+│   │   ├── account.ts     # Deploy, login, send, repay debt
+│   │   ├── address.ts     # Address computation from JWT
+│   │   ├── provider.ts    # RpcProvider singleton
+│   │   ├── signer.ts      # SumoSigner, signature serialization
+│   │   └── wallet.ts      # External wallet connection (starknetkit)
+│   ├── config/            # All configuration constants
+│   │   ├── contracts.ts   # Contract addresses
+│   │   ├── crypto.ts      # FELT252_PRIME, etc.
+│   │   ├── gas.ts         # Gas configuration
+│   │   ├── network.ts     # RPC URLs, Garaga API, Google Client ID
+│   │   ├── proof.ts       # ZK proof config
+│   │   └── storage.ts     # Storage keys
+│   ├── proof/
+│   │   ├── snarkjs.ts     # ZK proof generation/verification (Poseidon, Groth16)
+│   │   └── garaga.ts      # Garaga API client (POST /api/garaga/calldata)
+│   └── storage/
+│       └── local.ts       # LocalStorage persistence
+├── services/              # Barrel re-exports (thin wrappers over adapters)
+│   ├── zkProofService.ts  # → adapters/proof/snarkjs.ts
+│   ├── starknetService.ts # → adapters/chain/starknet/* + adapters/proof/garaga.ts
+│   └── walletService.ts   # → adapters/chain/starknet/wallet.ts
+├── hooks/                 # React state management
+│   ├── useAuthFlow.ts     # Login state machine orchestrator
+│   ├── useProofGeneration.ts  # ZK proof generation stages + progress
+│   └── useAccountOps.ts   # Account deploy, send, update key, repay debt
+├── components/
+│   ├── LoginWizard.tsx    # Single-card wizard (4 steps with fade transitions)
+│   ├── ZKProofGenerator.tsx   # Proof generation UI (auto-start, accordion details)
+│   ├── WalletPanel.tsx    # Post-login wallet dashboard
+│   ├── GoogleLoginButton.tsx  # OAuth trigger
+│   ├── FlowStepper.tsx    # Visual progress indicator (standalone)
+│   ├── JWTViewer.tsx      # JWT payload display (debug utility)
+│   └── ui/                # 50+ Radix UI / shadcn components
+├── utils/
+│   ├── crypto.ts          # Session key generation, ECDSA signing, address computation
+│   ├── storage.ts         # Barrel → adapters/storage/local.ts
+│   └── units.ts           # Wei/Ether conversion
+├── config/
+│   └── starknet.ts        # Shared RpcProvider instance
+├── types/
+│   └── index.ts           # GoogleJWT, SessionKeyPair, ZKProof, SmartAccount, LoginFlow, Transaction
+└── App.tsx                # Root layout: header (user avatar when logged in), LoginWizard or dashboard
+```
 
-**Backend (`server/`)**
-- Express server (`index.cjs`, CommonJS) bridges to Python scripts via `.venv/bin/python3`
+### Backend (`server/`)
+- Pure Python FastAPI server (`server/app.py`), run via uvicorn
+- Verification key loaded once at startup (no per-request file I/O)
+- Proof parsed via `Groth16Proof.from_dict()` directly (no temp files, no subprocess)
 - `POST /api/garaga/calldata`: Accepts snarkjs proof + public signals, returns Garaga-compatible felt252 arrays
 - `GET /health`: Health check endpoint
-- `scripts/generate_garaga_calldata.py`: Python script for Garaga proof conversion
+- Python dependencies: garaga v1.0.1, fastapi, uvicorn (installed in `.venv`)
 
-**Circuits (`circuits/`)**
+### When does the frontend call the backend?
+Only during on-chain operations (not during ZK proof generation):
+1. **Deploy Account** — user clicks "Deploy Account" → `checkGaragaApiHealth()` → `serializeSignature()` → `convertSnarkjsProofToGaraga()`
+2. **Update Session Key** — user clicks "Update Session Key" → same flow
+
+Call chain: `useAccountOps` → `deploySumoAccount/loginToUpdateKey` → `generateSumoSignature` → `serializeSignature` → `convertSnarkjsProofToGaraga` (POST /api/garaga/calldata)
+
+### Circuits (`circuits/`)
 - `simple_auth.circom`: Simplified auth circuit (email length: 32 bytes)
 - `sumo_auth_official.circom`: Full circuit with SHA256 output and U256 splits (email length: 64 bytes)
 - Compiled artifacts served from `public/zk/` (wasm, zkey, verification_key.json)
 
-**Smart Contracts (`sumo-login-cairo/`)**
+### Smart Contracts (`sumo-login-cairo/`)
 - `src/login/login_contract.cairo`: Main login contract - user registration, login, account deployment, debt management
 - `src/account/account_contract.cairo`: User account contract - ECDSA signature verification, key rotation with expiration
 - `src/verifier/groth16_verifier.cairo`: On-chain Groth16 verification using Garaga library (BN254 curve)
@@ -111,5 +158,6 @@ Email hashing uses chunked Poseidon (15 bytes per chunk, chain-hashed) due to Po
 ### Key Technical Constants
 - Poseidon chunk size: 15 bytes per chunk
 - Session key expiration: 24 hours
-- Backend payload limit: 10MB JSON
 - Network: Starknet Sepolia testnet
+- Garaga calldata length: ~3013 felt252 elements
+- Gas buffer: 150% of current price
