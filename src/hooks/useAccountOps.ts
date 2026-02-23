@@ -353,7 +353,7 @@ export function useAccountOps({
 
   const openStarkScan = () => {
     window.open(
-      `https://sepolia.starkscan.co/contract/${account.address}`,
+      `https://sepolia.voyager.online/contract/${account.address}`,
       "_blank",
     );
   };

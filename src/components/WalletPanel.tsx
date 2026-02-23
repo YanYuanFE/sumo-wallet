@@ -134,7 +134,7 @@ export function WalletPanel({
           </div>
 
           {/* Debt Warning Section */}
-          {isDeployed && debt !== "0" && BigInt(debt) > 0 && (
+          {isDeployed && BigInt(debt) > 0n && (
             <div className="p-4 bg-amber-50 border border-amber-200 rounded-lg">
               <div className="space-y-3">
                 <div>
