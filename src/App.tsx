@@ -10,13 +10,7 @@ import { WalletPanel } from "@/components/WalletPanel";
 
 import { useAuthFlow, GOOGLE_CLIENT_ID } from "@/hooks/useAuthFlow";
 
-import {
-  Shield,
-  Cpu,
-  Github,
-  RefreshCw,
-  LogOut,
-} from "lucide-react";
+import { Cpu, Github, RefreshCw, LogOut } from "lucide-react";
 
 function AppContent() {
   const {
@@ -34,19 +28,25 @@ function AppContent() {
   } = useAuthFlow();
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-slate-50 to-slate-100">
+    <div className="min-h-screen bg-gradient-to-br from-slate-50 to-slate-100 flex flex-col">
       <Toaster position="top-center" />
 
       {/* Header */}
       <header className="bg-white border-b">
         <div className="max-w-6xl mx-auto px-4 py-3 flex items-center justify-between">
           <div className="flex items-center gap-3">
-            <div className="w-9 h-9 bg-gradient-to-br from-blue-500 to-purple-600 rounded-xl flex items-center justify-center">
-              <Shield className="w-5 h-5 text-white" />
+            <div className="size-10 flex items-center justify-center">
+              <img
+                src="/logo.png"
+                className="w-full text-white"
+                alt="SUMO Login"
+              />
             </div>
             <div>
-              <h1 className="text-lg font-bold leading-tight">SUMO Login</h1>
-              <p className="text-[11px] text-muted-foreground">ZK Authentication on Starknet</p>
+              <h1 className="text-lg font-bold leading-tight">SUMO Wallet</h1>
+              <p className="text-[11px] text-muted-foreground">
+                ZK Authentication on Starknet
+              </p>
             </div>
           </div>
 
@@ -55,16 +55,28 @@ function AppContent() {
               <>
                 <Avatar className="size-7">
                   <AvatarImage src={decodedJWT.picture} alt={decodedJWT.name} />
-                  <AvatarFallback className="text-xs">{decodedJWT.name?.[0]?.toUpperCase()}</AvatarFallback>
+                  <AvatarFallback className="text-xs">
+                    {decodedJWT.name?.[0]?.toUpperCase()}
+                  </AvatarFallback>
                 </Avatar>
-                <span className="text-sm text-muted-foreground hidden sm:inline">{decodedJWT.email}</span>
-                <Button variant="ghost" size="icon" className="size-8" onClick={handleLogout}>
+                <span className="text-sm text-muted-foreground hidden sm:inline">
+                  {decodedJWT.email}
+                </span>
+                <Button
+                  variant="ghost"
+                  size="icon"
+                  className="size-8"
+                  onClick={handleLogout}
+                >
                   <LogOut className="w-4 h-4" />
                 </Button>
               </>
             ) : (
               <>
-                <Badge variant="outline" className="hidden sm:flex items-center gap-1 text-xs">
+                <Badge
+                  variant="outline"
+                  className="hidden sm:flex items-center gap-1 text-xs"
+                >
                   <Cpu className="w-3 h-3" />
                   snarkjs + Poseidon
                 </Badge>
@@ -83,14 +95,15 @@ function AppContent() {
         </div>
       </header>
 
-      <main className="max-w-6xl mx-auto px-4 py-8">
+      <main className="max-w-6xl mx-auto px-4 py-8 flex-1 w-full">
         {account ? (
           /* Post-login dashboard */
           <div className="max-w-2xl mx-auto space-y-6">
             <div className="flex items-center justify-between">
               <div>
                 <h2 className="text-2xl font-semibold">
-                  Welcome{decodedJWT?.given_name ? `, ${decodedJWT.given_name}` : ''}
+                  Welcome
+                  {decodedJWT?.given_name ? `, ${decodedJWT.given_name}` : ""}
                 </h2>
                 <p className="text-sm text-muted-foreground">
                   Your ZK-authenticated wallet on Starknet Sepolia
@@ -109,7 +122,9 @@ function AppContent() {
               zkProof={zkProof}
               maxBlock={maxBlock}
               onLogout={handleLogout}
-              onDeploySuccess={() => toast.success('Account deployed on Starknet!')}
+              onDeploySuccess={() =>
+                toast.success("Account deployed on Starknet!")
+              }
             />
           </div>
         ) : (
@@ -129,7 +144,7 @@ function AppContent() {
       </main>
 
       {/* Footer */}
-      <footer className="bg-white border-t mt-16">
+      <footer className="bg-white border-t">
         <div className="max-w-6xl mx-auto px-4 py-5">
           <div className="flex flex-col sm:flex-row items-center justify-between gap-3">
             <p className="text-xs text-muted-foreground">

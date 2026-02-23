@@ -1,11 +1,11 @@
-import { Card, CardContent, CardHeader } from '@/components/ui/card';
-import { GoogleLoginButton } from '@/components/GoogleLoginButton';
-import { ZKProofGenerator } from '@/components/ZKProofGenerator';
-import { Avatar, AvatarImage, AvatarFallback } from '@/components/ui/avatar';
-import type { LoginFlow, GoogleJWT, SessionKeyPair, ZKProof } from '@/types';
-import { type FullZKProof } from '@/services/zkProofService';
-import { Check, Loader2, Shield } from 'lucide-react';
-import { toast } from 'sonner';
+import { Card, CardContent, CardHeader } from "@/components/ui/card";
+import { GoogleLoginButton } from "@/components/GoogleLoginButton";
+import { ZKProofGenerator } from "@/components/ZKProofGenerator";
+import { Avatar, AvatarImage, AvatarFallback } from "@/components/ui/avatar";
+import type { LoginFlow, GoogleJWT, SessionKeyPair, ZKProof } from "@/types";
+import { type FullZKProof } from "@/services/zkProofService";
+import { Check, Loader2 } from "lucide-react";
+import { toast } from "sonner";
 
 interface LoginWizardProps {
   flow: LoginFlow;
@@ -13,26 +13,34 @@ interface LoginWizardProps {
   googleToken: string | null;
   sessionKey: SessionKeyPair | null;
   maxBlock: number;
-  onGoogleSuccess: (tokenResponse: { access_token: string; id_token?: string }) => void;
+  onGoogleSuccess: (tokenResponse: {
+    access_token: string;
+    id_token?: string;
+  }) => void;
   onZKProofGenerated: (proof: ZKProof & { fullProof?: FullZKProof }) => void;
 }
 
 const STEPS = [
-  { label: 'Sign In' },
-  { label: 'Verify' },
-  { label: 'ZK Proof' },
-  { label: 'Ready' },
+  { label: "Sign In" },
+  { label: "Verify" },
+  { label: "ZK Proof" },
+  { label: "Ready" },
 ];
 
-function getWizardStep(flowStep: LoginFlow['step']): number {
+function getWizardStep(flowStep: LoginFlow["step"]): number {
   switch (flowStep) {
-    case 'idle': return 0;
-    case 'oauth':
-    case 'jwt':
-    case 'session': return 1;
-    case 'zkproof': return 2;
-    case 'account': return 3;
-    default: return 3;
+    case "idle":
+      return 0;
+    case "oauth":
+    case "jwt":
+    case "session":
+      return 1;
+    case "zkproof":
+      return 2;
+    case "account":
+      return 3;
+    default:
+      return 3;
   }
 }
 
@@ -48,19 +56,29 @@ function WizardStepper({ currentStep }: { currentStep: number }) {
               <div
                 className={`
                   w-7 h-7 rounded-full flex items-center justify-center text-xs font-medium transition-all duration-300
-                  ${completed ? 'bg-green-500 text-white' : ''}
-                  ${active ? 'bg-primary text-primary-foreground ring-2 ring-primary/20' : ''}
-                  ${!completed && !active ? 'bg-muted text-muted-foreground' : ''}
+                  ${completed ? "bg-green-500 text-white" : ""}
+                  ${active ? "bg-primary text-primary-foreground ring-2 ring-primary/20" : ""}
+                  ${!completed && !active ? "bg-muted text-muted-foreground" : ""}
                 `}
               >
-                {completed ? <Check className="w-3.5 h-3.5" /> : active ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : i + 1}
+                {completed ? (
+                  <Check className="w-3.5 h-3.5" />
+                ) : active ? (
+                  <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                ) : (
+                  i + 1
+                )}
               </div>
-              <span className={`text-[11px] mt-1 ${active ? 'text-foreground font-medium' : 'text-muted-foreground'}`}>
+              <span
+                className={`text-[11px] mt-1 ${active ? "text-foreground font-medium" : "text-muted-foreground"}`}
+              >
                 {step.label}
               </span>
             </div>
             {i < STEPS.length - 1 && (
-              <div className={`h-px flex-1 mx-1 mb-5 transition-colors duration-300 ${currentStep > i ? 'bg-green-500' : 'bg-muted'}`} />
+              <div
+                className={`h-px flex-1 mx-1 mb-5 transition-colors duration-300 ${currentStep > i ? "bg-green-500" : "bg-muted"}`}
+              />
             )}
           </div>
         );
@@ -92,8 +110,12 @@ export function LoginWizard({
           {wizardStep === 0 && (
             <div className="py-8 space-y-6">
               <div className="text-center space-y-2">
-                <div className="w-12 h-12 bg-gradient-to-br from-blue-500 to-purple-600 rounded-2xl flex items-center justify-center mx-auto">
-                  <Shield className="w-6 h-6 text-white" />
+                <div className="size-12 flex items-center justify-center mx-auto">
+                  <img
+                    src="/logo.png"
+                    className="w-full text-white"
+                    alt="SUMO Login"
+                  />
                 </div>
                 <h2 className="text-xl font-semibold">Welcome to SUMO Login</h2>
                 <p className="text-sm text-muted-foreground max-w-xs mx-auto">
@@ -102,7 +124,7 @@ export function LoginWizard({
               </div>
               <GoogleLoginButton
                 onSuccess={onGoogleSuccess}
-                onError={() => toast.error('Google login failed')}
+                onError={() => toast.error("Google login failed")}
               />
             </div>
           )}
@@ -113,15 +135,24 @@ export function LoginWizard({
               <div className="flex flex-col items-center gap-4">
                 {decodedJWT ? (
                   <Avatar className="size-14">
-                    <AvatarImage src={decodedJWT.picture} alt={decodedJWT.name} />
-                    <AvatarFallback className="text-lg">{decodedJWT.name?.[0]?.toUpperCase()}</AvatarFallback>
+                    <AvatarImage
+                      src={decodedJWT.picture}
+                      alt={decodedJWT.name}
+                    />
+                    <AvatarFallback className="text-lg">
+                      {decodedJWT.name?.[0]?.toUpperCase()}
+                    </AvatarFallback>
                   </Avatar>
                 ) : (
                   <div className="w-14 h-14 rounded-full bg-muted animate-pulse" />
                 )}
                 <div className="text-center space-y-1">
-                  {decodedJWT && <p className="font-medium">{decodedJWT.name}</p>}
-                  <p className="text-sm text-muted-foreground">{flow.message}</p>
+                  {decodedJWT && (
+                    <p className="font-medium">{decodedJWT.name}</p>
+                  )}
+                  <p className="text-sm text-muted-foreground">
+                    {flow.message}
+                  </p>
                 </div>
                 <Loader2 className="w-5 h-5 animate-spin text-muted-foreground" />
               </div>
@@ -139,7 +170,7 @@ export function LoginWizard({
               </div>
               <ZKProofGenerator
                 jwt={decodedJWT}
-                jwtToken={googleToken || ''}
+                jwtToken={googleToken || ""}
                 sessionKey={sessionKey}
                 maxBlock={maxBlock}
                 autoStart
@@ -157,7 +188,9 @@ export function LoginWizard({
                 </div>
                 <div className="text-center space-y-1">
                   <p className="font-medium">Creating your account</p>
-                  <p className="text-sm text-muted-foreground">{flow.message}</p>
+                  <p className="text-sm text-muted-foreground">
+                    {flow.message}
+                  </p>
                 </div>
               </div>
             </div>
