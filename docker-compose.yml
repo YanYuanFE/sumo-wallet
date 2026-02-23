@@ -1,0 +1,35 @@
+version: '3.8'
+
+services:
+  server:
+    build:
+      context: .
+      dockerfile: Dockerfile.server
+    container_name: sumo-server
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "wget", "--no-verbose", "--tries=1", "--spider", "http://localhost:3001/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+    networks:
+      - dokploy-network
+
+  web:
+    build:
+      context: .
+      dockerfile: Dockerfile
+      args:
+        VITE_GARAGA_API_URL: ""
+        VITE_GOOGLE_CLIENT_ID: ${VITE_GOOGLE_CLIENT_ID:-}
+        VITE_RPC_URL: ${VITE_RPC_URL:-}
+    container_name: sumo-web
+    restart: unless-stopped
+    depends_on:
+      - server
+    networks:
+      - dokploy-network
+
+networks:
+  dokploy-network:
+    external: true

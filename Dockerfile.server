@@ -1,0 +1,12 @@
+FROM python:3.10-slim
+
+WORKDIR /app
+
+RUN pip install --no-cache-dir garaga==1.0.1 fastapi uvicorn
+
+COPY server/app.py ./server/
+COPY public/zk/verification_key.json ./public/zk/
+
+EXPOSE 3001
+
+CMD ["uvicorn", "server.app:app", "--host", "0.0.0.0", "--port", "3001"]
