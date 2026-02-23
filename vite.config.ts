@@ -6,7 +6,6 @@ import { nodePolyfills } from "vite-plugin-node-polyfills";
 
 // https://vite.dev/config/
 export default defineConfig({
-  base: "./",
   plugins: [inspectAttr(), react(), nodePolyfills()],
   server: {
     port: 5176,
