@@ -4,8 +4,7 @@ export const STARKNET_RPC_URL =
   import.meta.env.VITE_RPC_URL ||
   "https://starknet-sepolia.g.alchemy.com/starknet/version/rpc/v0_10/OfZA_k9dt4bm8hU_brCcah5wbRx--cf9";
 
-export const GARAGA_API_URL =
-  import.meta.env.VITE_GARAGA_API_URL || 'http://localhost:3001';
+export const GARAGA_API_URL = '';
 
 export const GOOGLE_JWKS_URL =
   "https://www.googleapis.com/oauth2/v3/certs";

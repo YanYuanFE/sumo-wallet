@@ -19,8 +19,8 @@ WORKDIR /app
 COPY --from=deps /app/node_modules ./node_modules
 COPY . .
 
-ARG VITE_GARAGA_API_URL=""
 ARG VITE_GOOGLE_CLIENT_ID=""
+ARG VITE_GOOGLE_CLIENT_SECRET=""
 ARG VITE_RPC_URL=""
 
 RUN pnpm build

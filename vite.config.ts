@@ -10,6 +10,10 @@ export default defineConfig({
   plugins: [inspectAttr(), react(), nodePolyfills()],
   server: {
     port: 5176,
+    proxy: {
+      '/api': 'http://localhost:3001',
+      '/health': 'http://localhost:3001',
+    },
   },
   resolve: {
     alias: {

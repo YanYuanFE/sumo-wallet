@@ -20,8 +20,8 @@ services:
       context: .
       dockerfile: Dockerfile
       args:
-        VITE_GARAGA_API_URL: ""
         VITE_GOOGLE_CLIENT_ID: ${VITE_GOOGLE_CLIENT_ID:-}
+        VITE_GOOGLE_CLIENT_SECRET: ${VITE_GOOGLE_CLIENT_SECRET:-}
         VITE_RPC_URL: ${VITE_RPC_URL:-}
     container_name: sumo-web
     restart: unless-stopped
