@@ -14,7 +14,7 @@ import { Label } from "@/components/ui/label";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import type { SmartAccount, GoogleJWT } from "@/types";
 import { formatAddress, formatTime } from "@/utils/crypto";
-import { formatEtherFixed } from "@/utils/units";
+import { formatEther, formatEtherFixed } from "@/utils/units";
 import {
   Wallet,
   Key,
@@ -36,7 +36,7 @@ interface WalletPanelProps {
   jwt: GoogleJWT | null;
   jwtToken: string | null;
   zkProof: any;
-  maxBlock: number;  // Must match the maxBlock used for ZK proof generation
+  maxBlock: number; // Must match the maxBlock used for ZK proof generation
   onLogout: () => void;
   onDeploySuccess?: () => void;
 }
@@ -69,6 +69,7 @@ export function WalletPanel({
     amount,
     setAmount,
     isExpired,
+    needsKeyUpdate,
     copyToClipboard,
     handleDeploy,
     handleSend,
@@ -84,6 +85,8 @@ export function WalletPanel({
     onLogout,
     onDeploySuccess,
   });
+
+  console.log(debt, BigInt(debt), "debet");
 
   return (
     <>
@@ -138,13 +141,15 @@ export function WalletPanel({
             <div className="p-4 bg-amber-50 border border-amber-200 rounded-lg">
               <div className="space-y-3">
                 <div>
-                  <p className="text-sm font-medium text-amber-800">Outstanding Debt</p>
+                  <p className="text-sm font-medium text-amber-800">
+                    Outstanding Debt
+                  </p>
                   <p className="text-lg font-bold text-amber-900">
-                    {formatEtherFixed(debt, 6)} STRK
+                    {formatEther(BigInt(debt))} STRK
                   </p>
-                  <p className="text-xs text-amber-600 mt-1">
+                  {/* <p className="text-xs text-amber-600 mt-1">
                     还债后才能更新 Session Key
-                  </p>
+                  </p> */}
                 </div>
                 <div className="flex gap-2">
                   <Button
@@ -157,13 +162,25 @@ export function WalletPanel({
                     {isRepayingDebt ? (
                       <>
                         <RefreshCw className="w-4 h-4 mr-2 animate-spin" />
-                        处理中...
+                        Processing...
                       </>
                     ) : (
-                      "还债"
+                      "Repay Debt"
                     )}
                   </Button>
                 </div>
+              </div>
+            </div>
+          )}
+
+          {/* Key Update Warning */}
+          {isDeployed && needsKeyUpdate && (
+            <div className="p-4 bg-red-50 border border-red-200 rounded-lg">
+              <div className="flex items-center gap-2">
+                <AlertCircle className="w-4 h-4 text-red-600 shrink-0" />
+                <p className="text-sm font-medium text-red-800">
+                  Session key mismatch — please update your session key before performing any operations.
+                </p>
               </div>
             </div>
           )}
@@ -195,6 +212,7 @@ export function WalletPanel({
                   className="w-full"
                   size="lg"
                   onClick={() => setShowSendDialog(true)}
+                  disabled={needsKeyUpdate}
                 >
                   <Send className="w-4 h-4 mr-2" />
                   Send
@@ -209,8 +227,8 @@ export function WalletPanel({
                   View
                 </Button>
                 <Button
-                  variant="secondary"
-                  className="w-full col-span-2"
+                  variant={needsKeyUpdate ? "default" : "secondary"}
+                  className={`w-full col-span-2 ${needsKeyUpdate ? "bg-red-600 hover:bg-red-700 text-white animate-pulse" : ""}`}
                   size="sm"
                   onClick={handleUpdateKey}
                   disabled={isUpdatingKey || !zkProof}
@@ -223,7 +241,7 @@ export function WalletPanel({
                   ) : (
                     <>
                       <Key className="w-4 h-4 mr-2" />
-                      Update Session Key
+                      {needsKeyUpdate ? "Update Session Key (Required)" : "Update Session Key"}
                     </>
                   )}
                 </Button>

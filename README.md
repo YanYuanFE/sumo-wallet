@@ -1,534 +1,106 @@
-# SUMO Login - ZK 登录演示
+# SUMO Wallet — ZK Social Login for Starknet
 
-一个基于零知识证明（Zero-Knowledge Proof）的 Google 登录演示应用，展示如何使用 ZK 技术实现无需暴露用户敏感信息的身份验证。
+A zero-knowledge proof powered smart wallet on Starknet. Users authenticate with Google, a client-side Groth16 ZK proof verifies their identity without revealing any personal data on-chain, and a self-custodial smart contract wallet is created instantly.
 
-## 🎯 什么是零知识证明？
+**No seed phrases. No custodians. Full privacy.**
 
-**零知识证明**（Zero-Knowledge Proof, ZKP）是一种密码学技术，允许一方（证明者）向另一方（验证者）证明某个陈述是真实的，而无需透露任何超出陈述本身真实性的信息。
+## The Problem
 
-### 生活中的类比
+Onboarding to Web3 remains broken. Users must manage seed phrases, install wallet extensions, and understand cryptographic key management before making their first transaction. Custodial solutions simplify UX but sacrifice decentralization — users trust a third party with their funds.
 
-想象你要证明你知道一个保险箱的密码，但不想告诉对方密码是什么：
+There is no way to get a self-custodial wallet with just a Google login — until now.
 
-1. **传统方式**：你直接告诉对方密码 → 密码泄露风险
-2. **ZK 方式**：你打开保险箱取出里面的物品给对方看 → 证明你知道密码，但密码本身从未暴露
+## How It Works
 
-在本项目中，我们证明"用户拥有有效的 Google 账号"，但不需要暴露用户的邮箱、JWT 令牌等敏感信息。
+### Step 1 — Google Sign-In
 
-## 🏗️ 系统架构
+User clicks "Sign in with Google". The OAuth flow returns a signed JWT token containing the user's identity claims.
 
-```
-┌─────────────────────────────────────────────────────────────┐
-│                         用户                                 │
-└──────────────────────┬──────────────────────────────────────┘
-                       │
-                       ▼
-┌─────────────────────────────────────────────────────────────┐
-│  1. Google OAuth 登录                                       │
-│     - 用户使用 Google 账号登录                              │
-│     - 获取 Google 用户信息（邮箱、sub ID 等）               │
-└──────────────────────┬──────────────────────────────────────┘
-                       │
-                       ▼
-┌─────────────────────────────────────────────────────────────┐
-│  2. 生成会话密钥                                            │
-│     - 创建临时密钥对（公钥 + 私钥）                         │
-│     - 24 小时后自动过期                                     │
-└──────────────────────┬──────────────────────────────────────┘
-                       │
-                       ▼
-┌─────────────────────────────────────────────────────────────┐
-│  3. ZK 证明生成                                             │
-│     - 从 JWT 派生秘密值                                     │
-│     - 计算身份承诺（Identity Commitment）                   │
-│     - 生成零知识证明                                        │
-└──────────────────────┬──────────────────────────────────────┘
-                       │
-                       ▼
-┌─────────────────────────────────────────────────────────────┐
-│  4. 验证与账户创建                                          │
-│     - 验证 ZK 证明的有效性                                  │
-│     - 创建智能账户                                          │
-│     - 用户获得区块链地址                                    │
-└─────────────────────────────────────────────────────────────┘
-```
+### Step 2 — Client-Side ZK Proof Generation
 
-## 🔐 核心流程详解
-
-### 步骤 1: 秘密派生（Secret Derivation）
+The browser generates a Groth16 proof using snarkjs. The circuit computes:
 
 ```
-JWT Token → SHA-256 哈希 → 取前 32 字节 → Secret
+Identity Commitment = Poseidon(EmailHash, GoogleSubID, SecretFromJWT)
 ```
 
-**为什么需要秘密？**
-- 秘密是从用户的 JWT 派生的唯一值
-- 只有拥有有效 JWT 的用户才能计算出正确的秘密
-- 秘密不会在网络上传输，只用于本地计算
+This proves the user owns a valid Google identity **without exposing what that identity is**. The email is hashed using chunked Poseidon (15 bytes per chunk) to fit within the circuit's field constraints.
 
-### 步骤 2: Email 哈希（Email Hashing）
+### Step 3 — On-Chain Verification
 
-由于 Poseidon 哈希函数最多支持 16 个输入，我们需要将 email 分批处理：
+The ZK proof is converted to Garaga-compatible calldata (BN254 curve) and submitted to Starknet. The on-chain Groth16 verifier validates the proof, and a smart contract wallet is deployed — linked to the user's identity commitment, not their email.
 
-```
-Email: "user@example.com" (32 bytes)
+### Step 4 — Session Keys
 
-Chunk 1: [0, byte0-byte14]  → Hash 1
-Chunk 2: [Hash 1, byte15-byte29] → Hash 2
-Chunk 3: [Hash 2, byte30-byte31, 0, ...] → Email Hash
-```
+A temporary ECDSA session key (24h expiry) is generated for smooth transaction signing. Users can send STRK, interact with dApps, and manage their wallet without re-proving their identity for every action.
 
-**为什么是链式哈希？**
-- 每轮处理 15 个数据字节 + 1 个链式输入
-- 第一轮的链式输入为 0
-- 后续轮次使用前一轮的哈希结果作为链式输入
-- 最终输出就是 Email Hash
-
-sncast declare \                                                                                                              
-    --contract-name Groth16VerifierBN254 \                                                                                 
-    --account=new_account
-sncast --account=new_account deploy \
-                  --class-hash=<NEW_LOGIN_CLASS_HASH> \
-                  --constructor-calldata 0x<ACCOUNT_CLASS_HASH> 0x75edb4789d214a899c95bb756bbdcc343481dcaafdafcfaf4f0409ad1548f5b \
-                  --network=sepolia
-
-                  
-
-### 步骤 3: 身份承诺（Identity Commitment）
+## Architecture
 
 ```
-Identity Commitment = Poseidon(Email Hash, Sub, Secret)
+┌─────────────┐     ┌──────────────┐     ┌──────────────────┐
+│ Google OAuth │────▶│  Browser ZK  │────▶│  Starknet Chain  │
+│ (JWT Token)  │     │  (snarkjs +  │     │ (Groth16 verify  │
+│              │     │   Poseidon)  │     │ + Smart Wallet)  │
+└─────────────┘     └──────┬───────┘     └──────────────────┘
+                           │
+                    ┌──────▼───────┐
+                    │  Garaga API  │
+                    │    (Proof    │
+                    │  Conversion) │
+                    └──────────────┘
 ```
 
-**什么是身份承诺？**
+- **Frontend**: React + TypeScript + Vite, hexagonal architecture (adapters / services / hooks)
+- **ZK Circuits**: Circom (Groth16), compiled to WASM for in-browser proving
+- **Proof Conversion**: FastAPI server using Garaga v1.0.1 for BN254 calldata generation
+- **Smart Contracts**: Cairo on Starknet — Login contract (registration + verification), Account contract (session key management), Groth16 Verifier (on-chain proof validation via Garaga)
 
-身份承诺（Identity Commitment）是一个密码学概念，类似于"数字指纹"或"身份哈希"。它是用户身份的唯一标识符，但具有以下特殊性质：
+## Key Features
 
-1. **唯一性**：每个用户的身份承诺都是独一无二的
-2. **确定性**：相同的输入总是产生相同的承诺
-3. **单向性**：无法从承诺反推原始输入
-4. **绑定性**：承诺与特定身份永久绑定
+- **One-Click Onboarding** — Sign in with Google, get a Starknet wallet. No seed phrases, no extensions.
+- **Full Privacy** — Email, JWT, and personal data never touch the blockchain. Only the ZK identity commitment is stored on-chain.
+- **Self-Custodial** — No centralized key management. The smart contract wallet is controlled by the user's ZK-proven identity.
+- **Client-Side Proving** — ZK proof generation happens entirely in the browser. No server ever sees the user's private inputs.
+- **Session Keys** — 24-hour ephemeral keys for seamless UX without repeated proof generation.
+- **On-Chain Verification** — Groth16 proof verified on Starknet using Garaga's BN254 verifier. Trustless, fully decentralized.
+- **Account Abstraction** — Leverages Starknet's native account abstraction for flexible signature schemes and gas management.
 
-**类比理解：**
+## Tech Stack
 
-想象你在一个匿名俱乐部注册：
-- **传统方式**：你需要出示身份证（暴露真实身份）
-- **身份承诺方式**：你提供一个"会员编号"，俱乐部可以验证这个编号属于你，但不知道你的真实身份
+| Layer | Technology |
+|-------|-----------|
+| Frontend | React 19, TypeScript, Vite, Tailwind CSS, Radix UI |
+| ZK Circuits | Circom, snarkjs (Groth16), Poseidon Hash |
+| Proof Conversion | Python FastAPI, Garaga v1.0.1 (BN254) |
+| Smart Contracts | Cairo, Starknet 2.14.0, snforge |
+| On-Chain Verifier | Garaga Groth16 Verifier (BN254 curve) |
+| Authentication | Google OAuth 2.0 (Authorization Code flow) |
+| Deployment | Docker, Nginx, Dokploy |
 
-**在 SUMO 中的组成：**
-
-身份承诺由三个要素通过 Poseidon 哈希计算得出：
-
-| 要素 | 说明 | 来源 |
-|------|------|------|
-| **Email Hash** | 用户邮箱的哈希值 | 从 JWT 中的 email 字段计算 |
-| **Sub** | Google 用户的唯一标识符 | JWT 中的 sub 字段 |
-| **Secret** | 从 JWT 派生的秘密值 | JWT 的 SHA-256 哈希 |
-
-**为什么需要这三个要素？**
-
-1. **Email Hash**：确保邮箱的唯一性
-2. **Sub**：Google 分配的全局唯一用户 ID
-3. **Secret**：证明用户拥有有效的 JWT（只有持有 JWT 才能计算出正确的 Secret）
-
-**安全特性：**
-
-- **隐私保护**：验证者只能看到承诺值，无法知道用户的邮箱或 Google ID
-- **不可伪造**：不知道 Secret 的人无法生成有效的承诺
-- **可验证**：持有 JWT 的用户可以随时重新计算相同的承诺来证明身份
-
-**代码示例：**
-
-```typescript
-// 生成身份承诺
-async function generateIdentityCommitment(
-  email: string,
-  sub: string,
-  secret: bigint
-): Promise<bigint> {
-  // 1. 计算 Email Hash
-  const emailHash = await hashEmailBytes(emailBytes);
-  
-  // 2. 计算 Identity Commitment
-  // commitment = Poseidon(emailHash, sub, secret)
-  const commitment = poseidon([emailHash, subNum, secret]);
-  return commitment;
-}
-```
-
-**在 ZK 证明中的作用：**
-
-```
-公开输入（所有人可见）:  Identity Commitment
-私有输入（只有证明者知道）: Email, Sub, Secret
-
-证明逻辑：
-1. 证明者知道 Email, Sub, Secret
-2. 验证 Poseidon(Email, Sub, Secret) == Identity Commitment
-3. 如果相等，证明有效
-```
-
-这样，验证者可以确认"这个人确实拥有对应的 Google 身份"，但完全不知道这个身份是什么。
-
-### 步骤 4: 会话授权（Session Authorization）
-
-```
-Session Auth = Poseidon(Identity Commitment, Session Public Key)
-```
-
-**作用：**
-- 将用户身份与临时会话密钥绑定
-- 证明这个会话密钥属于特定的身份
-- 会话密钥 24 小时后过期，需要重新生成
-
-### 步骤 5: ZK 证明生成
-
-**公开输入（Public Inputs）** - 所有人可见：
-- `identityCommitment`: 身份承诺
-- `sessionPublicKey`: 会话公钥
-
-**私有输入（Private Inputs）** - 只有证明者知道：
-- `email`: 用户邮箱
-- `sub`: Google 用户 ID
-- `secret`: 从 JWT 派生的秘密
-
-**电路验证逻辑：**
-```
-1. 验证 Email Hash 是从 email 正确计算的
-2. 验证 Identity Commitment = Poseidon(Email Hash, sub, secret)
-3. 验证 Identity Commitment 与公开输入匹配
-4. 如果所有验证通过，输出 valid = 1
-```
-
-**为什么安全？**
-- 验证者可以看到 Identity Commitment，但无法知道 email、sub 或 secret
-- 证明者必须知道正确的 secret 才能生成有效证明
-- 证明无法伪造，因为需要实际的 JWT 来派生 secret
-
-## 🧮 技术实现
-
-### 哈希函数：Poseidon
-
-**为什么选择 Poseidon？**
-- 专为 ZK 电路设计，计算效率高
-- 在有限域上运算，适合电路约束
-- 比 SHA-256 在电路中更轻量
-
-**使用方式：**
-```typescript
-// 计算 Poseidon 哈希
-const hash = poseidon([input1, input2, input3]);
-```
-
-### ZK 证明系统：Groth16
-
-**什么是 Groth16？**
-- 一种高效的 ZK 证明系统
-- 证明大小小（约 200 字节）
-- 验证速度快
-
-**证明生成流程：**
-```
-私有输入 + 公开输入 → ZK 电路 → 证明 (Proof)
-```
-
-**验证流程：**
-```
-证明 + 公开输入 + 验证密钥 → 验证 → 有效/无效
-```
-
-### Circom 电路
-
-**SimpleAuth 电路结构：**
-```circom
-template SimpleAuth(emailLength) {
-    // 公开输入
-    signal input identityCommitment;
-    signal input sessionPublicKey;
-    
-    // 私有输入
-    signal input email[emailLength];
-    signal input sub;
-    signal input secret;
-    
-    // 输出
-    signal output valid;
-    
-    // 1. 计算 Email Hash（链式哈希）
-    // 2. 计算 Identity Commitment
-    // 3. 验证 Identity Commitment 匹配
-    // 4. 输出 valid = 1 如果验证通过
-}
-```
-
-## 📁 项目结构
-
-```
-sumo-login/
-├── circuits/                 # ZK 电路
-│   ├── simple_auth.circom   # 主要认证电路
-│   └── jwt_verify.circom    # JWT 验证电路
-├── public/zk/               # 编译后的电路文件
-│   ├── simple_auth.wasm     # 电路 WASM
-│   ├── simple_auth_final.zkey  # 证明密钥
-│   └── verification_key.json   # 验证密钥
-├── src/
-│   ├── components/          # React 组件
-│   │   ├── ZKProofGenerator.tsx  # ZK 证明生成器
-│   │   ├── AccountCard.tsx       # 账户信息卡片
-│   │   └── ...
-│   ├── services/
-│   │   └── zkProofService.ts    # ZK 证明服务
-│   └── utils/
-│       └── crypto.ts            # 加密工具函数
-└── README.md
-```
-
-## 🚀 快速开始
-
-### 安装依赖
+## Quick Start
 
 ```bash
-npm install
+# Install dependencies
+pnpm install
+
+# Start frontend + backend
+pnpm run dev:all
+
+# Or separately
+pnpm run dev        # Frontend (port 5176)
+pnpm run server     # Backend (port 3001)
 ```
 
-### 编译电路（可选）
+## What Makes SUMO Wallet Unique?
 
-如果修改了 `.circom` 文件，需要重新编译：
+Most "social login" wallets are custodial or semi-custodial (MPC). SUMO Wallet is the first to combine **Google OAuth + client-side ZK proofs + on-chain verification** into a fully self-custodial flow on Starknet. Your identity is proven by a zero-knowledge proof, not by trusting a server. Your wallet is controlled by math, not by a company.
 
-```bash
-cd circuits
-./compile.sh
-```
+## Links
 
-### 运行开发服务器
+- [SUMO Login Cairo Contracts](https://github.com/fatlabsxyz/sumo-login-cairo)
+- [Starknet Documentation](https://docs.starknet.io/)
+- [Garaga](https://github.com/keep-starknet-strange/garaga)
 
-```bash
-npm run dev
-```
-
-### 构建生产版本
-
-```bash
-npm run build
-```
-
-## 🔍 代码逻辑详解
-
-### 1. 登录流程 ([`src/App.tsx`](src/App.tsx:1))
-
-```typescript
-// 登录流程状态机
-type LoginStep = 'idle' | 'oauth' | 'jwt' | 'session' | 'zkproof' | 'account' | 'complete';
-
-// 流程：
-// 1. idle: 等待用户点击登录
-// 2. oauth: Google OAuth 认证
-// 3. jwt: 获取并解析 JWT
-// 4. session: 生成会话密钥对
-// 5. zkproof: 生成 ZK 证明
-// 6. account: 创建智能账户
-// 7. complete: 登录完成
-```
-
-### 2. ZK 证明服务 ([`src/services/zkProofService.ts`](src/services/zkProofService.ts:1))
-
-```typescript
-// 核心函数
-
-// 生成身份承诺
-async function generateIdentityCommitment(
-  email: string,
-  sub: string,
-  secret: bigint
-): Promise<bigint> {
-  // 1. 计算 Email Hash（链式 Poseidon）
-  const emailHash = await hashEmailBytes(emailBytes);
-  
-  // 2. 计算 Identity Commitment
-  const commitment = poseidon([emailHash, subNum, secret]);
-  return commitment;
-}
-
-// 生成 ZK 证明
-async function generateRealZKProof(
-  jwt: GoogleJWT,
-  sessionKey: SessionKeyPair,
-  jwtToken: string
-): Promise<ZKProof> {
-  // 1. 准备输入
-  const { publicInputs, privateInputs } = await generateProofInputs(...);
-  
-  // 2. 使用 snarkjs 生成证明
-  const fullProof = await groth16.fullProve(
-    { ...privateInputs, ...publicInputs },
-    CIRCUIT_WASM_URL,
-    CIRCUIT_ZKEY_URL
-  );
-  
-  return fullProof;
-}
-```
-
-### 3. Email 哈希实现
-
-**TypeScript 端：**
-```typescript
-async function hashEmailBytes(emailBytes: number[]): Promise<bigint> {
-  const CHUNK_SIZE = 15;
-  const POSEIDON_SIZE = 16;
-  const numChunks = Math.ceil(emailBytes.length / CHUNK_SIZE);
-  
-  let currentHash: bigint = BigInt(0);
-  
-  for (let i = 0; i < numChunks; i++) {
-    // 构建输入：[链式输入, 数据...]
-    const inputs = new Array(POSEIDON_SIZE).fill(0);
-    inputs[0] = currentHash;
-    
-    // 填充数据
-    for (let j = 0; j < chunk.length; j++) {
-      inputs[j + 1] = chunk[j];
-    }
-    
-    const hash = poseidon(inputs);
-    currentHash = poseidon.F.toObject(hash);
-  }
-  
-  return currentHash;
-}
-```
-
-**Circom 电路端：**
-```circom
-// 与 TypeScript 完全相同的逻辑
-var chunkSize = 15;
-var numChunks = (emailLength + chunkSize - 1) \ chunkSize;
-
-for (var i = 0; i < numChunks; i++) {
-    chunkHasher[i] = Poseidon(16);
-    
-    // 链式输入
-    if (i == 0) {
-        chunkHasher[i].inputs[0] <== 0;
-    } else {
-        chunkHasher[i].inputs[0] <== intermediateHashes[i-1];
-    }
-    
-    // 数据输入
-    for (var j = 0; j < 15; j++) {
-        chunkHasher[i].inputs[j + 1] <== email[start + j];
-    }
-}
-```
-
-## 🛡️ 安全特性
-
-1. **零知识性**：证明者不暴露 JWT、邮箱或秘密
-2. **不可伪造性**：必须拥有有效 JWT 才能生成有效证明
-3. **时效性**：会话密钥 24 小时过期
-4. **绑定性**：证明与特定会话密钥绑定
-
-## 🤔 常见问题
-
-### Q: 为什么需要 ZK 证明？
-**A**: 传统登录方式需要服务器验证 JWT，服务器可以看到用户的敏感信息。ZK 证明允许用户证明自己拥有有效身份，而无需暴露任何敏感信息。
-
-### Q: ZK 证明会被重放攻击吗？
-**A**: 不会。每个证明都与特定的会话密钥绑定，且只能使用一次。
-
-### Q: 如果 JWT 过期了怎么办？
-**A**: 用户需要重新登录获取新的 JWT，然后生成新的 ZK 证明。
-
-### Q: 电路文件（.wasm, .zkey）是什么？
-**A**: 
-- `.wasm`: 编译后的电路，用于在浏览器中生成证明
-- `.zkey`: 证明密钥，包含生成证明所需的参数
-- `verification_key.json`: 验证密钥，用于验证证明
-
-## 📚 相关技术
-
-- **Circom**: ZK 电路设计语言
-- **snarkjs**: JavaScript ZK 证明库
-- **Poseidon**: ZK 友好的哈希函数
-- **Groth16**: 高效的 ZK 证明系统
-- **BN128**: 椭圆曲线，用于密码学运算
-- **Garaga**: 将 Groth16 证明转换为 Starknet 可验证格式的工具
-
-### 什么是 Garaga Proof？
-
-**Garaga** 是一个开源工具，用于将 Ethereum 上的 Groth16 ZK 证明转换为 Starknet 可以验证的格式。
-
-#### 为什么需要 Garaga？
-
-1. **不同链的密码学基础不同**：
-   - Ethereum 使用 BN128 椭圆曲线
-   - Starknet 使用 STARK 友好的有限域
-
-2. **证明格式不兼容**：
-   - snarkjs 生成的证明基于 BN128
-   - Starknet 需要 felt252 格式的证明
-
-3. **Garaga 的作用**：
-   - 将 BN128 曲线上的点转换为 Starknet 的 felt252 格式
-   - 生成可在 Cairo 合约中验证的证明
-
-#### Garaga Proof 的结构
-
-```cairo
-// Garaga 转换后的证明格式
-struct GaragaProof {
-    // 证明元素 (felt252 数组)
-    proof: Array<felt252>,
-    
-    // 公共输入
-    public_inputs: Array<felt252>,
-}
-```
-
-#### 工作流程
-
-```
-┌─────────────────┐     ┌─────────────┐     ┌─────────────────┐
-│  snarkjs 证明   │────▶│   Garaga    │────▶│ Starknet 可验证 │
-│  (BN128 格式)   │     │   转换器     │     │  (felt252 格式) │
-└─────────────────┘     └─────────────┘     └─────────────────┘
-
-步骤：
-1. 使用 snarkjs 生成 Groth16 证明（基于 BN128 曲线）
-2. Garaga 将证明元素从 BN128 坐标转换为 felt252
-3. 转换后的证明可以在 Cairo 合约中验证
-```
-
-#### 在 SUMO 中的使用
-
-```typescript
-// 1. 生成 snarkjs 证明
-const snarkjsProof = await groth16.fullProve(inputs, wasm, zkey);
-
-// 2. 转换为 Garaga 格式（felt252 数组）
-const garagaProof: bigint[] = convertToGaragaFormat(snarkjsProof);
-
-// 3. 提交到 Starknet
-await deploySumoAccount(jwt, jwtToken, sessionKey, maxBlock, garagaProof);
-```
-
-#### 转换细节
-
-Garaga 主要进行以下转换：
-- **G1 点**: (x, y) 从 BN128 坐标 → felt252
-- **G2 点**: (x1, x2, y1, y2) 从 BN128 坐标 → felt252 数组
-- **公共输入**: 从字符串/数字转换为 felt252
-
-## 📝 许可证
-
-MIT License
-
-## 🔗 相关链接
-
-- [Garaga GitHub](https://github.com/keep-starknet-strange/garaga)
-- [SUMO Login Cairo 合约](https://github.com/haipome/sumo-login-cairo)
-- [Starknet 文档](https://docs.starknet.io/)
-- [Circom 文档](https://docs.circom.io/)
+## License
 
 MIT License

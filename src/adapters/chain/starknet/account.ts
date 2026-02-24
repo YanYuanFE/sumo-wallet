@@ -434,6 +434,25 @@ export async function testSignatureSerialization(
   }
 }
 
+export async function getOnChainSessionKey(
+  accountAddress: string,
+): Promise<string | null> {
+  try {
+    // Storage key for `public_key` in the Account contract
+    // In Starknet, storage addresses are sn_keccak(variable_name)
+    const storageKey = hash.getSelectorFromName("public_key");
+    const result = await provider.getStorageAt(accountAddress, storageKey);
+    // result is "0x0" if no key is set (undeployed or zero)
+    if (!result || result === "0x0" || BigInt(result) === BigInt(0)) {
+      return null;
+    }
+    return result;
+  } catch (error) {
+    console.error("[getOnChainSessionKey] Failed:", error);
+    return null;
+  }
+}
+
 export async function deploySumoAccountWithExternalWallet(
   externalAccount: Account,
   jwt: GoogleJWT,

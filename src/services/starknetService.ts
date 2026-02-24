@@ -26,6 +26,7 @@ export {
   getAccountBalance,
   getUserDebt,
   getOracleModulusF,
+  getOnChainSessionKey,
   repayDebtWithExternalWallet,
   repayDebt,
   sendSTRK,

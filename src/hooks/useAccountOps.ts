@@ -13,6 +13,7 @@ import {
   loginToUpdateKey,
   getUserDebt,
   repayDebt,
+  getOnChainSessionKey,
 } from "@/services/starknetService";
 
 interface UseAccountOpsParams {
@@ -43,6 +44,7 @@ export function useAccountOps({
   const [isRepayingDebt, setIsRepayingDebt] = useState(false);
   const [balance, setBalance] = useState("0");
   const [debt, setDebt] = useState("0");
+  const [needsKeyUpdate, setNeedsKeyUpdate] = useState(false);
   const [showDeployDialog, setShowDeployDialog] = useState(false);
   const [showSendDialog, setShowSendDialog] = useState(false);
   const [recipient, setRecipient] = useState("");
@@ -94,6 +96,16 @@ export function useAccountOps({
         if (deployed) {
           const userDebt = await getUserDebt(account.address);
           setDebt(userDebt);
+
+          // Compare on-chain session key with local key
+          const onChainKey = await getOnChainSessionKey(account.address);
+          if (onChainKey) {
+            const localKey = BigInt(account.sessionKey.publicKey);
+            const chainKey = BigInt(onChainKey);
+            setNeedsKeyUpdate(localKey !== chainKey);
+          } else {
+            setNeedsKeyUpdate(false);
+          }
         }
       } catch (error) {
         console.error("[useAccountOps] Check deployment failed:", error);
@@ -104,7 +116,7 @@ export function useAccountOps({
     };
 
     checkDeployment();
-  }, [account.address]);
+  }, [account.address, account.sessionKey.publicKey]);
 
   const copyToClipboard = (text: string, field: string) => {
     navigator.clipboard.writeText(text);
@@ -299,6 +311,20 @@ export function useAccountOps({
       });
 
       toast.info("Waiting for confirmation...");
+
+      // Poll for on-chain key update confirmation
+      let attempts = 0;
+      const checkInterval = setInterval(async () => {
+        attempts++;
+        const onChainKey = await getOnChainSessionKey(account.address);
+        if (onChainKey && BigInt(onChainKey) === BigInt(account.sessionKey.publicKey)) {
+          clearInterval(checkInterval);
+          setNeedsKeyUpdate(false);
+          toast.success("Session key updated on-chain!");
+        } else if (attempts > 20) {
+          clearInterval(checkInterval);
+        }
+      }, 5000);
     } catch (error) {
       console.error("[handleUpdateKey] Update failed:", error);
       toast.error("Key update failed: " + (error as Error).message);
@@ -377,6 +403,7 @@ export function useAccountOps({
     amount,
     setAmount,
     isExpired,
+    needsKeyUpdate,
     copyToClipboard,
     handleDeploy,
     handleSend,
