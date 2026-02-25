@@ -3,5 +3,5 @@
 const CACHE_BUST = '?v=' + Date.now();
 
 export const CIRCUIT_WASM_URL = '/zk/sumo_auth_official.wasm' + CACHE_BUST;
-export const CIRCUIT_ZKEY_URL = '/zk/sumo_auth_official_final.zkey' + CACHE_BUST;
+export const CIRCUIT_ZKEY_URL = 'https://static.norvos.xyz/sumo_auth_official_final.zkey';
 export const VERIFICATION_KEY_URL = '/zk/verification_key.json' + CACHE_BUST;

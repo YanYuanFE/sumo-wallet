@@ -29,7 +29,7 @@ function AppContent() {
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-slate-50 to-slate-100 flex flex-col">
-      <Toaster position="top-center" />
+      <Toaster position="top-center" richColors />
 
       {/* Header */}
       <header className="bg-white border-b">

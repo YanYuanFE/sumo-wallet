@@ -120,6 +120,7 @@ __pycache__
 circuits/build/
 *.ptau
 *.r1cs
+*.zkey
 
 # Cairo / Scarb
 sumo-login-cairo/target/

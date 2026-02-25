@@ -12,7 +12,7 @@ import type { GoogleJWT, SessionKeyPair, ZKProof } from '@/types';
 // Circuit files (pre-compiled and hosted)
 const CACHE_BUST = '?v=' + Date.now();
 const CIRCUIT_WASM_URL = '/zk/sumo_auth_official.wasm' + CACHE_BUST;
-const CIRCUIT_ZKEY_URL = '/zk/sumo_auth_official_final.zkey' + CACHE_BUST;
+const CIRCUIT_ZKEY_URL = 'https://static.norvos.xyz/sumo_auth_official_final.zkey';
 const VERIFICATION_KEY_URL = '/zk/verification_key.json' + CACHE_BUST;
 
 // Constants for u256 splitting
