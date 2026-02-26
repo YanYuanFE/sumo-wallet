@@ -381,6 +381,10 @@ async function generateSimulatedProof(
 }
 
 async function checkFileExists(url: string): Promise<boolean> {
+  // External URLs (CDN) — trust they exist, skip HEAD check to avoid CORS issues
+  if (url.startsWith('http://') || url.startsWith('https://')) {
+    return true;
+  }
   try {
     const response = await fetch(url, { method: 'HEAD' });
     return response.ok;

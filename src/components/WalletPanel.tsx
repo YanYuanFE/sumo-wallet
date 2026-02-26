@@ -385,7 +385,7 @@ export function WalletPanel({
 
             <div className="space-y-2">
               <Label>Account Address</Label>
-              <code className="block bg-gray-100 px-3 py-2 rounded text-sm font-mono">
+              <code className="block bg-gray-100 px-3 py-2 rounded text-sm font-mono break-all">
                 {account.address}
               </code>
             </div>
